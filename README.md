@@ -110,6 +110,7 @@ This allows real-device test runs without specifying `deviceName` or `platformVe
 
 The detector:
 
+- Attempts to locate the adb executable (PATH, ANDROID_HOME, ANDROID_SDK_ROOT, common SDK paths)
 - Executes `adb devices`
 - **Ignores all emulators** (any device whose ID starts with `emulator-`)
 - Selects the **first physical device** if multiple are connected
