@@ -31,14 +31,30 @@ public class MobileDriver implements WebDriverProvider {
         String platform = System.getProperty(PROPERTY);
 
         return switch (platform) {
-            case EMULATOR_ANDROID, REAL_ANDROID -> localAndroidDriver();
+            case EMULATOR_ANDROID -> emulAndroidDriver();
+            case REAL_ANDROID -> realAndroidDriver();
             case BS_ANDROID -> bsAndroidDriver();
             case BS_IOS -> bsIOSDriver();
             default -> throw new AssertionError("Wrong platform name: " + platform);
         };
     }
 
-    private WebDriver localAndroidDriver() {
+    private WebDriver emulAndroidDriver() {
+        UiAutomator2Options options = new UiAutomator2Options();
+
+        options.setPlatformName(ANDROID);
+        options.setAutomationName(ANDROID_UIAUTOMATOR2);
+        options.setDeviceName(ConfigProvider.config().deviceName());
+        options.setPlatformVersion(ConfigProvider.config().platformVersion());
+        options.setApp(getAppPath());
+        options.setAppPackage(ConfigProvider.config().appPackage());
+        options.setAppActivity(ConfigProvider.config().appActivity());
+        options.setAutoGrantPermissions(false);
+
+        return new AndroidDriver(getServerUrl(), options);
+    }
+
+    private WebDriver realAndroidDriver() {
         AdbDeviceDetector.DeviceInfo adbDetector = AdbDeviceDetector.detectDeviceInfo();
 
         UiAutomator2Options options = new UiAutomator2Options();
