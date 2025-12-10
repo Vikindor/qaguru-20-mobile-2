@@ -4,8 +4,8 @@ Wikipedia Mobile App Tests
 
 ## 📌 About
 
-Automated test suite for the Wikipedia mobile application on both Android and iOS platforms.
-The project supports local execution (real devices & emulator) and cloud execution through BrowserStack.
+Automated test suite for the Wikipedia mobile application on Android and iOS.
+The project supports local execution (real devices & emulator) and cloud execution via BrowserStack.
 
 ## 🛠 Tech stack
 
@@ -52,16 +52,16 @@ gradle clean test -Dplatform=emul-and
 gradle clean test -Dplatform=real-and
 ```
 
-- The APK is automatically downloaded into `src/test/resources/apps/` from GitHub Releases if it is not present locally.
+- The APK is automatically downloaded to `src/test/resources/apps/` from GitHub Releases if it is not present locally.
 
 ### Android — BrowserStack
 ```
-clean test -Dplatform=bs-and -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
+gradle clean test -Dplatform=bs-and -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
 ```
 
 ### iOS — BrowserStack
 ```
-clean test -Dplatform=bs-ios -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
+gradle clean test -Dplatform=bs-ios -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
 ```
 
 - BrowserStack session names are automatically derived from the test’s `@DisplayName` or method name.
