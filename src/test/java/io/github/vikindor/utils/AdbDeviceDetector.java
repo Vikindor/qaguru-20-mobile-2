@@ -1,17 +1,20 @@
 package io.github.vikindor.utils;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
- /**
+/**
  * Utility to detect connected Android devices via adb.
  *
  * Behavior:
+ * - attempts to locate the adb executable (PATH, ANDROID_HOME, ANDROID_SDK_ROOT, common SDK paths)
  * - ignores devices whose id starts with "emulator"
  * - if multiple physical devices are present, returns the first one
  *
@@ -22,6 +25,7 @@ public final class AdbDeviceDetector {
     private AdbDeviceDetector() {}
 
     private static final Duration ADB_TIMEOUT = Duration.ofSeconds(5);
+    private static volatile String RESOLVED_ADB = null;
 
     public static DeviceInfo detectDeviceInfo() {
         String deviceId = firstPhysicalDeviceId();
@@ -30,7 +34,7 @@ public final class AdbDeviceDetector {
     }
 
     public static String firstPhysicalDeviceId() {
-        CommandResult res = runCommand("adb", "devices");
+        CommandResult res = runCommand(resolveAdb(), "devices");
 
         if (res.timedOut) {
             throw new RuntimeException("adb command timed out. Is adb available and responsive?");
@@ -40,13 +44,13 @@ public final class AdbDeviceDetector {
                     + ". stderr: " + safe(res.stderr));
         }
 
-        List<String> lines = res.stdout.lines()
-                                       .map(String::trim)
-                                       .filter(line -> !line.isEmpty())
-                                       .collect(Collectors.toList());
+        List<String> lines = Arrays.stream(res.stdout.split("\\R"))
+                                   .map(String::trim)
+                                   .filter(line -> !line.isEmpty())
+                                   .collect(Collectors.toList());
 
         if (lines.isEmpty()) {
-            throw new RuntimeException("No output from 'adb devices'. Is adb in PATH?");
+            throw new RuntimeException("No output from 'adb devices'. ADB was invoked but produced no output.");
         }
 
         List<String> deviceLines = lines.stream()
@@ -92,7 +96,7 @@ public final class AdbDeviceDetector {
     }
 
     public static String platformVersionFor(String deviceId) {
-        CommandResult r1 = runCommand("adb", "-s", deviceId, "shell", "getprop", "ro.build.version.release");
+        CommandResult r1 = runCommand(resolveAdb(), "-s", deviceId, "shell", "getprop", "ro.build.version.release");
         if (r1.timedOut) {
             throw new RuntimeException("adb shell getprop timed out for device " + deviceId);
         }
@@ -101,7 +105,7 @@ public final class AdbDeviceDetector {
             if (!ver.isEmpty()) return ver;
         }
 
-        CommandResult r2 = runCommand("adb", "-s", deviceId, "shell", "getprop", "ro.build.version.sdk");
+        CommandResult r2 = runCommand(resolveAdb(), "-s", deviceId, "shell", "getprop", "ro.build.version.sdk");
         if (r2.timedOut) {
             throw new RuntimeException("adb shell getprop timed out for device " + deviceId);
         }
@@ -115,7 +119,77 @@ public final class AdbDeviceDetector {
                 + " stdout2: " + safe(r2.stdout) + " stderr2: " + safe(r2.stderr));
     }
 
+    private static String resolveAdb() {
+        if (RESOLVED_ADB != null) return RESOLVED_ADB;
+
+        try {
+            CommandResult cr = runCommandInternal(new String[]{"adb", "version"});
+            if (!cr.timedOut && cr.exitCode == 0) {
+                RESOLVED_ADB = "adb";
+                return RESOLVED_ADB;
+            }
+        } catch (RuntimeException ignored) {}
+
+        String androidHome = System.getenv("ANDROID_HOME");
+        if (androidHome != null && !androidHome.trim().isEmpty()) {
+            String adbPath = join(androidHome, "platform-tools", executableName());
+            if (new File(adbPath).exists()) {
+                RESOLVED_ADB = adbPath;
+                return RESOLVED_ADB;
+            }
+        }
+
+        String sdkRoot = System.getenv("ANDROID_SDK_ROOT");
+        if (sdkRoot != null && !sdkRoot.trim().isEmpty()) {
+            String adbPath = join(sdkRoot, "platform-tools", executableName());
+            if (new File(adbPath).exists()) {
+                RESOLVED_ADB = adbPath;
+                return RESOLVED_ADB;
+            }
+        }
+
+        String userHome = System.getProperty("user.home");
+        String[] common = new String[]{
+                join(userHome, "Android", "Sdk", "platform-tools", executableName()),
+                join(userHome, "AppData", "Local", "Android", "Sdk", "platform-tools", executableName()), // windows common
+                "/usr/local/android-sdk/platform-tools/" + executableName(),
+                "/opt/android-sdk/platform-tools/" + executableName(),
+                "/usr/bin/" + executableName(),
+                "C:\\Android\\platform-tools\\" + executableName()
+        };
+
+        for (String path : common) {
+            if (path != null && new File(path).exists()) {
+                RESOLVED_ADB = path;
+                return RESOLVED_ADB;
+            }
+        }
+
+        throw new RuntimeException("ADB not found. Please add it to PATH or set ANDROID_HOME / ANDROID_SDK_ROOT.");
+    }
+
+    private static String join(String... parts) {
+        if (parts == null || parts.length == 0) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            String p = parts[i];
+            if (p == null) continue;
+            if (sb.length() > 0 && !sb.toString().endsWith(File.separator)) sb.append(File.separator);
+            sb.append(p.replace("/", File.separator).replace("\\", File.separator));
+        }
+        return sb.toString();
+    }
+
+    private static String executableName() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        return os.contains("win") ? "adb.exe" : "adb";
+    }
+
     private static CommandResult runCommand(String... command) {
+        return runCommandInternal(command);
+    }
+
+    private static CommandResult runCommandInternal(String[] command) {
         Process p = null;
         StringBuilder stdout = new StringBuilder();
         StringBuilder stderr = new StringBuilder();
@@ -144,7 +218,9 @@ public final class AdbDeviceDetector {
                     }
                     try {
                         Thread.sleep(20);
-                    } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
 
                 String o;
@@ -156,7 +232,7 @@ public final class AdbDeviceDetector {
                 return new CommandResult(stdout.toString(), stderr.toString(), exit, false);
             }
         } catch (Exception ex) {
-            String errMsg = "Failed to run command: " + String.join(" ", command) + ". Exception: " + ex.getMessage();
+            String errMsg = "Failed to run command: " + Arrays.toString(command) + ". Exception: " + ex.getMessage();
             throw new RuntimeException(errMsg, ex);
         } finally {
             if (p != null && p.isAlive()) {
