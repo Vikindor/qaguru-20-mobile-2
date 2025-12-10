@@ -6,6 +6,7 @@ import io.appium.java_client.android.options.UiAutomator2Options;
 import io.appium.java_client.ios.IOSDriver;
 import io.appium.java_client.ios.options.XCUITestOptions;
 import io.github.vikindor.configs.ConfigProvider;
+import io.github.vikindor.utils.AdbDeviceDetector;
 import org.apache.commons.io.FileUtils;
 import org.jspecify.annotations.NonNull;
 import org.openqa.selenium.Capabilities;
@@ -38,15 +39,18 @@ public class MobileDriver implements WebDriverProvider {
     }
 
     private WebDriver localAndroidDriver() {
-        UiAutomator2Options options = new UiAutomator2Options()
-                .setPlatformName(ANDROID)
-                .setAutomationName(ANDROID_UIAUTOMATOR2)
-                .setDeviceName(ConfigProvider.config().deviceName())
-                .setPlatformVersion(ConfigProvider.config().platformVersion())
-                .setApp(getAppPath())
-                .setAppPackage(ConfigProvider.config().appPackage())
-                .setAppActivity(ConfigProvider.config().appActivity())
-                .setAutoGrantPermissions(false);
+        AdbDeviceDetector.DeviceInfo adbDetector = AdbDeviceDetector.detectDeviceInfo();
+
+        UiAutomator2Options options = new UiAutomator2Options();
+
+        options.setPlatformName(ANDROID);
+        options.setAutomationName(ANDROID_UIAUTOMATOR2);
+        options.setDeviceName(adbDetector.deviceId);
+        options.setPlatformVersion(adbDetector.platformVersion);
+        options.setApp(getAppPath());
+        options.setAppPackage(ConfigProvider.config().appPackage());
+        options.setAppActivity(ConfigProvider.config().appActivity());
+        options.setAutoGrantPermissions(false);
 
         return new AndroidDriver(getServerUrl(), options);
     }
