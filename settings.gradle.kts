@@ -1,0 +1,1 @@
+rootProject.name = "qaguru-20-mobile-2"

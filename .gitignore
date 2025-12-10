@@ -1,0 +1,46 @@
+build/
+
+### APKs downloaded automatically ###
+src/test/resources/apps/
+
+### Gradle ###
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+*.log
+out/
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### OS junk ###
+.DS_Store
+Thumbs.db
+
+### Temp files ###
+*.tmp
+*.swp
+*.swo
+*.orig
