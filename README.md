@@ -24,7 +24,26 @@ The project supports local execution (real devices & emulator) and cloud executi
   <a href="https://qameta.io/" target="_blank" rel="noopener noreferrer"><img width="6%" src="media/logos/allure_report.png" alt="Allure Report logo" title="Allure Report"/></a>
 </p>
  
-`+` <a href="https://github.com/matteobaccan/owner" target="_blank" rel="noopener noreferrer">OWNER library</a> (configuration)
+`+` <a href="https://github.com/matteobaccan/owner" target="_blank" rel="noopener noreferrer">Owner library</a> (configuration)
+
+## ✨ Features
+
+- **Centralized configuration via the Owner library**   
+All environment- and platform-specific settings are managed through typed Owner interfaces.
+
+ 
+- **Automatic real-device detection via ADB**  
+A custom ADB detector identifies connected physical Android devices, ignores emulators, extracts the device serial, and reads its Android version.
+This allows real-device tests to run without manually specifying deviceName or platformVersion in configuration files.
+
+
+- **Automatic APK download**  
+The APK is automatically downloaded to `src/test/resources/apps/` from GitHub Releases if it is not present locally, ensuring that local Android runs always use the latest app build.
+
+
+- **Automatic BrowserStack session naming**  
+BrowserStack session names are automatically derived from the test’s `@DisplayName` (or the test method name), making sessions easy to identify in the BS dashboard.
+
 
 ## 📱 Supported Platforms
 
@@ -81,3 +100,37 @@ JSON capabilities set:
   "appium:noReset": false
 }
 ```
+
+## 🧠 ADB Device Detector
+
+The project includes a standalone utility that automatically detects a connected **physical Android device** using ADB.  
+This allows real-device test runs without specifying `deviceName` or `platformVersion` in configuration files.
+
+### ⚙️ How it works
+
+The detector:
+
+- Executes `adb devices`
+- **Ignores all emulators** (any device whose ID starts with `emulator-`)
+- Selects the **first physical device** if multiple are connected
+- Reads the device’s Android version via:
+    - `ro.build.version.release` (primary source)
+- Throws a clear error if:
+    - no physical devices are connected
+    - adb is unavailable
+    - version cannot be determined
+
+This makes real-device execution completely automatic and configuration-free.
+
+### 📋 Example usage in the driver
+
+```java
+import utils.AdbDeviceDetector;
+
+AdbDeviceDetector.DeviceInfo adbDetector = AdbDeviceDetector.detectDeviceInfo();
+
+options.setDeviceName(adbDetector.deviceId);
+options.setPlatformVersion(adbDetector.platformVersion);
+```
+
+When using this logic, you do **not** need to define `deviceName` or `platformVersion` in properties for real-device runs — the detector supplies them dynamically.
