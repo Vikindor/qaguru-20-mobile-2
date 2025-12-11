@@ -19,7 +19,7 @@ import static io.github.vikindor.configs.MobilePlatform.*;
 import static io.restassured.RestAssured.given;
 import static org.openqa.selenium.logging.LogType.BROWSER;
 
-public class Attach {
+public class AllureAttach {
 
     @Attachment(value = "Screenshot", type = "image/png")
     public static byte[] screenshot() {
