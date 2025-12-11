@@ -2,10 +2,34 @@
 Wikipedia Mobile App Tests
 </h1>
 
-## 📌 About
-
 Automated test suite for the Wikipedia mobile application on Android and iOS.
 The project supports local execution (real devices & emulator) and cloud execution via BrowserStack.
+
+## 📌 Table of Contents
+
+- [🛠 Tech stack](#-tech-stack)
+- [✨ Features](#-features)
+- [📱 Supported Platforms](#-supported-platforms)
+  - [Android](#android)
+  - [iOS](#ios)
+- [🚀 Running Tests](#-running-tests)
+  - [Android — Local Emulator](#android--local-emulator)
+  - [Android — Real Device](#android--real-device)
+  - [Android — BrowserStack](#android--browserstack)
+  - [iOS — BrowserStack](#ios--browserstack)
+- [🔍 Appium Inspector](#-appium-inspector)
+- [🎥 Appium screen recording (local & BrowserStack)](#-appium-screen-recording-local--browserstack)
+  - [Local Appium recording](#local-appium-recording)
+    - [Lifecycle](#lifecycle)
+    - [Important](#important)
+  - [BrowserStack recording](#browserstack-recording)
+    - [Lifecycle](#lifecycle-1)
+    - [Notes](#notes)
+  - [Integration example (TestBase)](#integration-example-testbase)
+  - [Supported environments](#supported-environments)
+- [🧠 ADB Device Detector](#-adb-device-detector)
+  - [⚙️ How it works](#️-how-it-works)
+  - [📋 Example usage in the driver](#-example-usage-in-the-driver)
 
 ## 🛠 Tech stack
 
@@ -67,23 +91,22 @@ gradle clean test -Dplatform=emul-and
 ```
 
 ### Android — Real Device
+
 ```
 gradle clean test -Dplatform=real-and
 ```
 
-- The APK is automatically downloaded to `src/test/resources/apps/` from GitHub Releases if it is not present locally.
-
 ### Android — BrowserStack
+
 ```
 gradle clean test -Dplatform=bs-and -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
 ```
 
 ### iOS — BrowserStack
+
 ```
 gradle clean test -Dplatform=bs-ios -DuserName=<your-bs-username> -DaccessKey=<your-bs-access-key>
 ```
-
-- BrowserStack session names are automatically derived from the test’s `@DisplayName` or method name.
 
 ## 🔍 Appium Inspector
 
@@ -100,6 +123,153 @@ JSON capabilities set:
   "appium:noReset": false
 }
 ```
+
+## 🎥 Appium screen recording
+
+This project supports two independent screen recording flows:  
+- **Local Appium recording** — recording is started and stopped using native Appium commands and attached to Allure as binary MP4.
+- **BrowserStack recording** — BrowserStack records the session automatically and exposes the video URL through its REST API; the framework embeds this video into an HTML wrapper for Allure.
+
+---
+
+## Local Appium recording
+
+**Start recording** — executed in `@BeforeEach` right after the driver session is created:
+
+```java
+AndroidDriver driver = (AndroidDriver) WebDriverRunner.getWebDriver();
+driver.startRecordingScreen();
+```
+
+**Stop + attach** — executed in `@AfterEach` **before** `closeWebDriver()`:
+
+```java
+@Attachment(value = "Video", type = "video/mp4", fileExtension = ".mp4")
+public static byte[] appiumVideo() {
+    try {
+        AndroidDriver driver = (AndroidDriver) WebDriverRunner.getWebDriver();
+        if (driver == null) {
+            return new byte[0];
+        }
+
+        String base64 = driver.stopRecordingScreen();
+        if (base64 == null || base64.isEmpty()) {
+            return new byte[0];
+        }
+
+        return Base64.getDecoder().decode(base64);
+
+    } catch (Exception e) {
+        System.err.println("Failed to attach screen recording: " + e.getMessage());
+        return new byte[0];
+    }
+}
+```
+
+### Important
+
+- `stopRecordingScreen()` **must be called before** `closeWebDriver()`.
+- After the WebDriver is closed, Appium unbinds the driver from the current thread, and the recording cannot be retrieved anymore.
+
+---
+
+## BrowserStack recording
+
+BrowserStack provides its own session video. Local Appium recording is **not used** for BS runs.
+
+### Lifecycle
+
+In `@AfterEach`, the framework:
+
+1. Retrieves BrowserStack session ID via `Selenide.sessionId()`
+2. Calls BS REST API to get `automation_session.video_url`
+3. Wraps this video URL into an HTML `<video>` tag
+4. Attaches the HTML snippet to Allure
+
+```java
+@Attachment(value = "Video", type = "text/html", fileExtension = ".html")
+public static String browserStackVideo(String sessionId) {
+    return "<html><body><video width='100%' height='100%' controls autoplay><source src='"
+            + getBrowserStackVideoUrl(sessionId)
+            + "' type='video/mp4'></video></body></html>";
+}
+
+private static String getBrowserStackVideoUrl(String sessionId) {
+    String platform = System.getProperty(PROPERTY);
+
+    if (platform.equals(BS_ANDROID) || platform.equals(BS_IOS)) {
+        String url = String.format("https://api.browserstack.com/app-automate/sessions/%s.json", sessionId);
+        return given()
+                .auth().basic(ConfigProvider.config().browserstackUser(), ConfigProvider.config().browserstackKey())
+                .get(url)
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("automation_session.video_url");
+    }
+
+    return null;
+}
+```
+
+### Notes
+
+- BrowserStack generates the recording shortly after the test session ends, so the framework first finishes the test (including closing the driver) and only then fetches the video via the API.
+- Session ID must be taken *before* closing the session.
+
+---
+
+## Integration example (TestBase)
+
+```java
+@BeforeEach
+void setUpTest(TestInfo testInfo) {
+    String bsSessionName = testInfo.getDisplayName();
+    System.setProperty("bs.sessionName", bsSessionName);
+
+    SelenideLogger.addListener("AllureSelenide", new AllureSelenide());
+
+    open();
+
+    AndroidDriver driver = (AndroidDriver) WebDriverRunner.getWebDriver(); // only for local Appium runs
+    driver.startRecordingScreen(); // only for local Appium runs
+}
+
+@AfterEach
+void tearDown() {
+    String platform = System.getProperty(PROPERTY);
+    String sessionId = Selenide.sessionId().toString();
+
+    AllureAttach.screenshot();
+    AllureAttach.pageSource();
+
+    if (platform.equals(EMULATOR_ANDROID) || platform.equals(REAL_ANDROID)) {
+        AllureAttach.appiumVideo(); // stop + attach Appium video
+    }
+
+    closeWebDriver();
+
+    if (platform.equals(BS_ANDROID) || platform.equals(BS_IOS)) {
+        AllureAttach.browserStackVideo(sessionId); // attach BrowserStack video
+    }
+}
+```
+
+---
+
+## Supported environments
+
+| Platform             | Supported | Notes                                 |
+|----------------------|-----------|---------------------------------------|
+| Android Emulator     | ✔         | Uses native Appium screen recording   |
+| Android real device  | ✔         | Uses native Appium screen recording   |
+| BrowserStack Android | ✔         | Video is provided automatically by BS |
+| iOS                  | ✔         | Video is provided automatically by BS |
+
+
+This unified approach keeps Allure reporting consistent while using the optimal recording strategy for each environment.
+
+---
 
 ## 🧠 ADB Device Detector
 
