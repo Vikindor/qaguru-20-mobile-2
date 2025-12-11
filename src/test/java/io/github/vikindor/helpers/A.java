@@ -9,7 +9,7 @@ public final class A {
 
     private A() {}
 
-    public static AndroidDriver driver() {
+    private static AndroidDriver driver() {
         return (AndroidDriver) WebDriverRunner.getWebDriver();
     }
 
