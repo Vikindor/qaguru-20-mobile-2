@@ -30,7 +30,7 @@ dependencies {
 
 allure {
     report {
-        version.set("2.35.1") // allure-framework/allure2
+        version.set("2.36.0") // allure-framework/allure2
     }
     adapter {
         autoconfigure.set(true)
