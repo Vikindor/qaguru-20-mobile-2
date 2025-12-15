@@ -16,7 +16,7 @@ repositories {
 dependencies {
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("com.codeborne:selenide:7.12.2")
+    testImplementation("com.codeborne:selenide:7.13.0")
     testImplementation("io.qameta.allure:allure-selenide:2.31.0")
     testImplementation("io.rest-assured:rest-assured:5.5.6")
     testImplementation("io.qameta.allure:allure-rest-assured:2.31.0")
